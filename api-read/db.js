@@ -3,7 +3,7 @@ const { Pool } = require("pg");
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
-    "DATABASE_URL manquant. Crée un fichier .env à partir de .env.example."
+    "DATABASE_URL manquant."
   );
 }
 

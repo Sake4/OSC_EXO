@@ -1,9 +1,21 @@
 <?php
 
-$user     = 'sake';
-$password = 'Y3dheuMhj7ACMC6YGPqc4lThIsqgRhJP';
+$databaseUrl = getenv('DATABASE_URL');
+if (!$databaseUrl) {
+    http_response_code(500);
+    header('Content-Type: application/json');
+    echo json_encode(['error' => 'DATABASE_URL manquant dans les variables d\'environnement.']);
+    exit;
+}
 
-$dsn = "pgsql:host=dpg-d9nir3fqj5pc73f0103g-a.frankfurt-postgres.render.com;port=5432;dbname=oscprojet;sslmode=require";
+$infos = parse_url($databaseUrl);
+$host     = $infos['host'];
+$port     = $infos['port'] ?? '5432';
+$dbname   = ltrim($infos['path'], '/');
+$user     = $infos['user'];
+$password = $infos['pass'];
+
+$dsn = "pgsql:host=$host;port=$port;dbname=$dbname;sslmode=require";
 
 try {
     $pdo = new PDO($dsn, $user, $password, [

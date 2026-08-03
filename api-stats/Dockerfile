@@ -1,17 +1,13 @@
-# Utilise l'image officielle PHP avec Apache
-FROM php:8.2-apache
+FROM php:8.2-cli
 
-# Active le module mod_rewrite d'Apache (indispensable pour les routes des API)
-RUN a2enmod rewrite
+# Installe les dépendances système nécessaires à la compilation de pdo_pgsql
+RUN apt-get update && apt-get install -y libpq-dev \
+    && docker-php-ext-install pdo pdo_pgsql \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copie tous les fichiers de ton projet dans le dossier web d'Apache
-COPY . /var/www/html/
+WORKDIR /app
+COPY . .
 
-# Ajuste les permissions pour Apache
-RUN chown -R www-data:www-data /var/www/html
-
-# Modifie le port d'écoute d'Apache pour utiliser la variable PORT de Render
-RUN sed -i 's/80/${PORT}/g' /etc/apache2/ports.conf /etc/apache2/sites-available/000-default.conf
-
-# Expose le port (utilisé en interne)
-EXPOSE 80
+# Render injecte le port disponible via la variable $PORT.
+# Forme shell (pas la forme JSON/exec) pour que $PORT soit bien interprété.
+CMD php -S 0.0.0.0:$PORT index.php

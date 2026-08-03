@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestion de groupes — Lecture &amp; suppression</title>
+<style>
+  :root {
+    --ink: #1c2321;
+    --ink-soft: #52605c;
+    --paper: #f6f7f5;
+    --line: #d8ddda;
+    --accent: #2f6f5e;
+    --accent-dark: #234f43;
+    --danger: #b3402f;
+    --danger-dark: #8a2f22;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    line-height: 1.5;
+  }
+
+  header {
+    padding: 2rem 2rem 1.25rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  header h1 {
+    margin: 0 0 0.25rem;
+    font-size: 1.6rem;
+    letter-spacing: -0.01em;
+  }
+
+  header p {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: 0.9rem;
+  }
+
+  main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+  }
+
+  section h2 {
+    font-size: 1.1rem;
+    margin: 0 0 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  section h2 .count {
+    font-weight: 400;
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0.1rem 0.6rem;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  thead th {
+    text-align: left;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink-soft);
+    background: #eef1ef;
+    padding: 0.65rem 0.9rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  tbody td {
+    padding: 0.65rem 0.9rem;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.92rem;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #fafbfa; }
+
+  button.delete-btn {
+    background: none;
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    padding: 0.3rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  button.delete-btn:hover {
+    background: var(--danger);
+    color: #fff;
+  }
+
+  button.delete-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .state-msg {
+    padding: 0.9rem;
+    font-size: 0.88rem;
+    color: var(--ink-soft);
+  }
+
+  .state-msg.error {
+    color: var(--danger-dark);
+    background: #fbe9e6;
+    border-radius: 6px;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    background: var(--accent-dark);
+    color: #fff;
+    padding: 0.7rem 1.1rem;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+  }
+
+  .toast.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .toast.error { background: var(--danger-dark); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Gestion de groupes</h1>
+  <p>Vue lecture &amp; suppression — Groupes et Individus</p>
+</header>
+
+<main>
+  <section>
+    <h2>Groupes <span class="count" id="count-groupes">—</span></h2>
+    <div id="zone-groupes"></div>
+  </section>
+
+  <section>
+    <h2>Individus <span class="count" id="count-individus">—</span></h2>
+    <div id="zone-individus"></div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ---------- Configuration ----------
+  // API Node.js sert à LIRE les données
+  const API_LECTURE = "http://127.0.0.1:3000";
+  // API Flask sert à SUPPRIMER les données
+  const API_SUPPRESSION = "http://127.0.0.1:5000";
+
+  // ---------- Utilitaires ----------
+  function afficherToast(message, estErreur = false) {
+    const toast = document.getElementById("toast");
+    toast.textContent = message;
+    toast.classList.toggle("error", estErreur);
+    toast.classList.add("visible");
+    setTimeout(() => toast.classList.remove("visible"), 2500);
+  }
+
+  function afficherEtatChargement(conteneurId) {
+    document.getElementById(conteneurId).innerHTML =
+      '<p class="state-msg">Chargement...</p>';
+  }
+
+  function afficherEtatErreur(conteneurId, message) {
+    document.getElementById(conteneurId).innerHTML =
+      `<p class="state-msg error">${message}</p>`;
+  }
+
+  //Groupes
+  async function chargerGroupes() {
+    afficherEtatChargement("zone-groupes");
+    try {
+      const reponse = await fetch(`${API_LECTURE}/groupes`);
+      if (!reponse.ok) throw new Error("Réponse API invalide");
+      const groupes = await reponse.json();
+      document.getElementById("count-groupes").textContent = groupes.length;
+
+      if (groupes.length === 0) {
+        document.getElementById("zone-groupes").innerHTML =
+          '<p class="state-msg">Aucun groupe pour le moment.</p>';
+        return;
+      }
+
+      const lignes = groupes.map(g => `
+        <tr data-id="${g.id_groupe}">
+          <td>${g.id_groupe}</td>
+          <td>${g.numero_groupe}</td>
+          <td>${g.id_projet}</td>
+          <td><button class="delete-btn" onclick="supprimerGroupe(${g.id_groupe})">Supprimer</button></td>
+        </tr>
+      `).join("");
+
+      document.getElementById("zone-groupes").innerHTML = `
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Numéro</th><th>ID Projet</th><th></th></tr>
+          </thead>
+          <tbody>${lignes}</tbody>
+        </table>
+      `;
+    } catch (err) {
+      afficherEtatErreur(
+        "zone-groupes",
+        "Impossible de charger les groupes. Vérifie que l'API Node.js tourne sur " + API_LECTURE
+      );
+    }
+  }
+
+  async function supprimerGroupe(id) {
+    if (!confirm("Supprimer ce groupe et tous ses individus liés ?")) return;
+    try {
+      const reponse = await fetch(`${API_SUPPRESSION}/groupes/${id}`, { method: "DELETE" });
+      if (!reponse.ok && reponse.status !== 204) throw new Error();
+      afficherToast("Groupe supprimé.");
+      chargerGroupes();
+      chargerIndividus(); // les individus liés ont pu être supprimés en cascade
+    } catch (err) {
+      afficherToast("Échec de la suppression du groupe.", true);
+    }
+  }
+
+  //Individus
+  async function chargerIndividus() {
+    afficherEtatChargement("zone-individus");
+    try {
+      const reponse = await fetch(`${API_LECTURE}/individus`);
+      if (!reponse.ok) throw new Error("Réponse API invalide");
+      const individus = await reponse.json();
+      document.getElementById("count-individus").textContent = individus.length;
+
+      if (individus.length === 0) {
+        document.getElementById("zone-individus").innerHTML =
+          '<p class="state-msg">Aucun individu pour le moment.</p>';
+        return;
+      }
+
+      const lignes = individus.map(i => `
+        <tr data-id="${i.id_individu}">
+          <td>${i.id_individu}</td>
+          <td>${i.nom}</td>
+          <td>${i.prenoms}</td>
+          <td>${i.sexe}</td>
+          <td>${i.profil}</td>
+          <td>${i.id_groupe}</td>
+          <td><button class="delete-btn" onclick="supprimerIndividu(${i.id_individu})">Supprimer</button></td>
+        </tr>
+      `).join("");
+
+      document.getElementById("zone-individus").innerHTML = `
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Nom</th><th>Prénoms</th><th>Sexe</th><th>Profil</th><th>ID Groupe</th><th></th></tr>
+          </thead>
+          <tbody>${lignes}</tbody>
+        </table>
+      `;
+    } catch (err) {
+      afficherEtatErreur(
+        "zone-individus",
+        "Impossible de charger les individus. Vérifie que l'API Node.js tourne sur " + API_LECTURE
+      );
+    }
+  }
+
+  async function supprimerIndividu(id) {
+    if (!confirm("Supprimer cet individu ?")) return;
+    try {
+      const reponse = await fetch(`${API_SUPPRESSION}/individus/${id}`, { method: "DELETE" });
+      if (!reponse.ok && reponse.status !== 204) throw new Error();
+      afficherToast("Individu supprimé.");
+      chargerIndividus();
+    } catch (err) {
+      afficherToast("Échec de la suppression de l'individu.", true);
+    }
+  }
+
+  //Chargement initial
+  chargerGroupes();
+  chargerIndividus();
+</script>
+
+</body>
+</html>

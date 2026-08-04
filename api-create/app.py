@@ -16,12 +16,12 @@ db.init_app(app)
 @app.route("/encadrants", methods=["POST"])
 def create_encadrant():
     data = request.get_json()
-    if not data or "nom" not in data or "prenoms" not in data:
-        return jsonify({"error": "nom et prenoms sont requis."}), 400
+    if not data or "nom" not in data or "prenom" not in data:
+        return jsonify({"error": "nom et prenom sont requis."}), 400
 
     nouveau_encadrant = Encadrant(
         nom=data["nom"],
-        prenoms=data["prenoms"]
+        prenom=data["prenom"]
     )
     db.session.add(nouveau_encadrant)
     try:
@@ -33,7 +33,7 @@ def create_encadrant():
     return jsonify({
         "id_encadrant": nouveau_encadrant.id_encadrant,
         "nom": nouveau_encadrant.nom,
-        "prenoms": nouveau_encadrant.prenoms
+        "prenom": nouveau_encadrant.prenom
     }), 201
 
 @app.route("/encadrants/<int:id_encadrant>", methods=["DELETE"])

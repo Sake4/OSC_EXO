@@ -1,7 +1,6 @@
 import os
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
-
 import psycopg2
 import psycopg2.extras
 from dotenv import load_dotenv

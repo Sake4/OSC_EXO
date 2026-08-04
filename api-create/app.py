@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from sqlalchemy.exc import IntegrityError
-from models import db, Groupe, Individu
+from models import Projet, db, Groupe, Individu, Encadrant
 from flask_cors import CORS
 
 load_dotenv()
@@ -12,6 +12,75 @@ CORS(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
 db.init_app(app)
 
+# ENCADRANTS
+@app.route("/encadrants", methods=["POST"])
+def create_encadrant():
+    data = request.get_json()
+    if not data or "nom" not in data or "prenoms" not in data:
+        return jsonify({"error": "nom et prenoms sont requis."}), 400
+
+    nouveau_encadrant = Encadrant(
+        nom=data["nom"],
+        prenoms=data["prenoms"]
+    )
+    db.session.add(nouveau_encadrant)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "Erreur lors de la création de l'encadrant."}), 400
+
+    return jsonify({
+        "id_encadrant": nouveau_encadrant.id_encadrant,
+        "nom": nouveau_encadrant.nom,
+        "prenoms": nouveau_encadrant.prenoms
+    }), 201
+
+@app.route("/encadrants/<int:id_encadrant>", methods=["DELETE"])
+def delete_encadrant(id_encadrant):
+    encadrant = db.session.get(Encadrant, id_encadrant)
+    if not encadrant:
+        return jsonify({"error": "Encadrant introuvable."}), 404
+
+    db.session.delete(encadrant)
+    db.session.commit()
+    return "", 204
+
+# PROJETS
+@app.route("/projets", methods=["POST"])
+def create_projet():
+    data = request.get_json()
+    if not data or "titre_projet" not in data or "id_encadrant" not in data:
+        return jsonify({"error": "titre_projet et id_encadrant sont requis."}), 400
+
+    nouveau_projet = Projet(
+        titre_projet=data["titre_projet"],
+        id_encadrant=data["id_encadrant"]
+    )
+    db.session.add(nouveau_projet)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "id_encadrant invalide : l'encadrant référencé n'existe pas."}), 400
+
+    return jsonify({
+        "id_projet": nouveau_projet.id_projet,
+        "titre_projet": nouveau_projet.titre_projet,
+        "id_encadrant": nouveau_projet.id_encadrant
+    }), 201
+
+@app.route("/projets/<int:id_projet>", methods=["DELETE"])
+def delete_projet(id_projet):
+    projet = db.session.get(Projet, id_projet)
+    if not projet:
+        return jsonify({"error": "Projet introuvable."}), 404
+
+    db.session.delete(projet)  # cascade supprime aussi les individus liés
+    db.session.commit()
+    return "", 204
+
+# GROUPES
 @app.route("/groupes", methods=["POST"])
 def create_groupe():
     data = request.get_json()
@@ -45,6 +114,7 @@ def delete_groupe(id_groupe):
     db.session.commit()
     return "", 204
 
+# INDIVIDUS
 @app.route("/individus", methods=["POST"])
 def create_individu():
     data = request.get_json()
